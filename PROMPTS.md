@@ -140,9 +140,44 @@ The AI draft was accurate about *what* changed but generic; the edit adds the
 one sentence only I could supply — *why* the change needed a manual fix step,
 not just what the diff contains.
 
-_(PR summary — original AI draft and edited version — will be added here once
-the GitHub repo is created and the PR is opened; see the note at the end of the
-session log.)_
+## Part D (continued) — AI-drafted PR summary
+
+Repo: https://github.com/abdra04-gif/m3-hands-on — PR: https://github.com/abdra04-gif/m3-hands-on/pull/1
+
+**Original AI draft** (from the raw diff, generic):
+```
+## Summary
+- Added fields and fromUser mapper to UserDTO record
+- Implemented getOrderById and createOrder in OrderController
+- Added PROMPTS.md documenting the AI-assisted workflow
+
+## Test plan
+- Ran make test
+```
+
+**Edited (used in the actual PR) version:**
+```
+## Summary
+- Complete UserDTO as a record (id, name, email, active) with a
+  fromUser(User) mapper and a small main that exercises it
+- Implement the getOrderById and createOrder TODO stubs in
+  OrderController
+- Add PROMPTS.md documenting the AI ghost-text suggestions used for
+  each piece, including a hallucinated getActive() call that failed
+  to compile and was fixed by hand to isActive()
+
+## Test plan
+- [x] make deps && make test — all 4 tests in OrderControllerTest pass
+- [x] java -cp build UserDTO — mapper prints the expected
+      UserDTO[id=1, name=Ada Lovelace, email=ada@example.com, active=true]
+- [x] Reviewed PROMPTS.md for the compile error caught during Part B
+      and confirmed the fix matches User's actual isActive() accessor
+```
+Same gap as the commit message: the raw AI draft correctly listed *what*
+changed (it can read the diff), but the checklist-style test plan and the
+explicit mention of the `getActive()`/`isActive()` catch only went in once I
+edited it — that's the part that tells a reviewer what to actually verify and
+why the change is trustworthy, not just what files moved.
 
 ## Part E — branch-name suggestion
 
