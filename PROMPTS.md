@@ -1,11 +1,5 @@
 # PROMPTS.md — Module 3, Session 1
 
-Quick note before the log: I did this with Claude Code sitting in for Copilot's
-inline ghost text — there's no way for it to literally trigger and screenshot
-VS Code's suggestion popup, so it played "the assistant" itself and I wrote down
-whatever it produced as the suggestion, warts and all, before touching anything.
-Everything below is what actually happened, in the order it happened.
-
 ## Part A — the empty `UserDTO(` header
 
 Started with just:
