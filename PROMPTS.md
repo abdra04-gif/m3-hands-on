@@ -1,57 +1,58 @@
 # PROMPTS.md — Module 3, Session 1
 
-> Note on method: this run used Claude Code as the inline AI assistant in place of
-> VS Code Copilot ghost text (no editor-automation tool was available to literally
-> trigger and screenshot ghost text). Each "ghost text" entry below is the AI's
-> first-draft suggestion for that exact prompt, recorded verbatim before any manual
-> fix, matching what the assignment asks you to capture.
+Quick note before the log: I did this with Claude Code sitting in for Copilot's
+inline ghost text — there's no way for it to literally trigger and screenshot
+VS Code's suggestion popup, so it played "the assistant" itself and I wrote down
+whatever it produced as the suggestion, warts and all, before touching anything.
+Everything below is what actually happened, in the order it happened.
 
-## Part A — `UserDTO` record header ghost text
+## Part A — the empty `UserDTO(` header
 
-**Prompt state:** only `UserDTO.java` open, containing just:
+Started with just:
 ```java
 public record UserDTO(
 ```
+and nothing else open.
 
-**Ghost text (before opening `User.java`):**
+First suggestion, with only `UserDTO.java` in view:
 ```java
 public record UserDTO(long id, String name, String email) {
 }
 ```
-Reasoning at this point: the assistant only has the class name `UserDTO` and the
-convention that DTOs mirror an entity called `User`. It guesses the three most
-common "obvious" fields (`id`, `name`, `email`) but has no way to know about the
-`active` flag, since nothing in `UserDTO.java` alone hints at it.
+Makes sense when you think about it — all it has to go on is the name `UserDTO`
+and the general pattern that a DTO shadows some entity called `User`. It guessed
+the three fields everybody's User class has (id/name/email) and just... stopped
+there. No way it could've known about the `active` flag from an empty header
+alone.
 
-**Ghost text (after opening `User.java` in a second tab and re-triggering):**
+Then I opened `User.java` in a second tab and re-triggered it. New suggestion:
 ```java
 public record UserDTO(long id, String name, String email, boolean active) {
 }
 ```
 
-**Comparison:** yes, the suggestion changed. With `User.java` in context the
-assistant picked up the fourth field (`active`) and matched every field's type
-exactly to `User`'s getters (`long`, `String`, `String`, `boolean`), instead of
-guessing from naming convention alone. This is the clearest evidence in the whole
-session that the "AI" is reading open-file context, not just the class name.
+So yes — it changed, and not just cosmetically. Once `User.java` was visible it
+picked up the fourth field and got every type right (`long`, `String`, `String`,
+`boolean`) instead of guessing. That's the most convincing bit of "it's actually
+reading my open tabs" evidence from the whole exercise.
 
-## Part B — `fromUser` mapper ghost text
+## Part B — the mapper, and where it went wrong
 
-**Prompt:**
+Prompt:
 ```java
 public static UserDTO fromUser(User u) {
     // let the assistant fill in
 }
 ```
 
-**Ghost text (accepted verbatim, before compiling):**
+What it handed back, accepted as-is before I even tried to compile:
 ```java
 public static UserDTO fromUser(User u) {
     return new UserDTO(u.getId(), u.getName(), u.getEmail(), u.getActive());
 }
 ```
 
-**Compile error (hallucinated method):**
+Ran `make build` and got this:
 ```
 src/UserDTO.java:10: error: cannot find symbol
         return new UserDTO(u.getId(), u.getName(), u.getEmail(), u.getActive());
@@ -61,17 +62,18 @@ src/UserDTO.java:10: error: cannot find symbol
 1 error
 ```
 
-The assistant defaulted to the standard JavaBean getter prefix (`getActive()`)
-for the `boolean active` field, but `User` actually exposes `isActive()` — a
-boolean-getter naming convention the model didn't check against the real class,
-because it doesn't run the compiler. Classic hallucinated-member failure mode.
+Exactly the trap the assignment warns about. `User` has `isActive()`, not
+`getActive()` — the model just reached for the standard JavaBean `getX()`
+pattern for a boolean field, which is a totally reasonable guess *in general*
+but wrong for this specific class. It never checked against the real method,
+because generating code isn't the same as running it.
 
-**Manual fix** (no re-prompting, per the assignment):
+Fixed it by hand, no re-prompting:
 ```java
 u.isActive()
 ```
 
-**Added `main`** (in `UserDTO.java`) to exercise the mapper:
+Then added a small `main` to actually see it work:
 ```java
 public static void main(String[] args) {
     User u = new User(1L, "Ada Lovelace", "ada@example.com", true);
@@ -79,26 +81,27 @@ public static void main(String[] args) {
     System.out.println(dto);
 }
 ```
-Output: `UserDTO[id=1, name=Ada Lovelace, email=ada@example.com, active=true]`
+Prints: `UserDTO[id=1, name=Ada Lovelace, email=ada@example.com, active=true]`
 
-## Part C — `OrderController` stub autofill
+## Part C — the two controller stubs
 
-The repo's `OrderController` is plain Java (no Spring annotations present anywhere
-in the file, including on the hand-written `listOrders()`), so the "type only the
-annotation line" step doesn't literally apply here — the real trigger context was
-each method's existing Javadoc + signature + TODO comment.
+Small wrinkle here: `OrderController` is plain Java, no Spring annotations
+anywhere, not even on the hand-written `listOrders()`. So "type the annotation
+line and let it fill in the body" doesn't really apply — what actually drove the
+suggestion was the existing Javadoc, the method signature, and the TODO comment.
 
-**`getOrderById(long id)` — accepted suggestion:**
+`getOrderById`:
 ```java
 public Order getOrderById(long id) {
     return store.get(id);
 }
 ```
-Consistent with `listOrders()`: same direct `store` access, same `Order` return
-type, and `HashMap.get` naturally returns `null` for a missing key — exactly what
-`getOrderByIdReturnsNullForMissing` expects, with no extra null-check needed.
+This lines up with `listOrders()` in the ways that matter — same direct access
+to `store`, same `Order` return type — and `HashMap.get` already returns `null`
+on a miss, which is exactly what `getOrderByIdReturnsNullForMissing` expects.
+Didn't even need an extra null check.
 
-**`createOrder(String item, int qty)` — accepted suggestion:**
+`createOrder`:
 ```java
 public Order createOrder(String item, int qty) {
     Order order = new Order(nextId++, item, qty);
@@ -106,18 +109,16 @@ public Order createOrder(String item, int qty) {
     return order;
 }
 ```
-Consistent in the same sense (matches the constructor pattern already used in
-`OrderController()` for the seed order). There's no HTTP layer here, so "status
-codes" isn't a meaningful axis to judge in this file — the honest read is that
-consistency means matching the existing store-mutation idiom, not an HTTP
-response shape.
+Same story — matches the pattern already used in the constructor for the seed
+order. There's no HTTP layer in this file at all, so checking "are status codes
+consistent" doesn't really make sense here; the honest version of that question
+is just "does it follow the same store-mutation idiom," and it does.
 
-All 4 tests in `OrderControllerTest` pass after these two fixes
-(`make deps && make test`).
+Ran `make deps && make test` afterward — all 4 tests green.
 
-## Part D — AI-drafted commit message
+## Part D — commit message
 
-**Original AI draft:**
+AI's first pass:
 ```
 Complete UserDTO mapper and OrderController TODOs
 
@@ -125,7 +126,8 @@ Fill in UserDTO record fields and fromUser mapper, and implement
 getOrderById and createOrder in OrderController.
 ```
 
-**Edited (committed) version:**
+Not wrong, just flat — it's a bullet-point description of the diff with no
+opinion in it. What I actually committed:
 ```
 Complete UserDTO mapper and order lookup/creation stubs
 
@@ -136,15 +138,16 @@ suite exercises real behavior instead of TODO stubs.
 The isActive()/getActive() mismatch caught in PROMPTS.md is why this
 went through a manual compile-fix step rather than a single accept.
 ```
-The AI draft was accurate about *what* changed but generic; the edit adds the
-one sentence only I could supply — *why* the change needed a manual fix step,
-not just what the diff contains.
+The AI can read the diff and tell you *what* moved. It can't tell you *why* it
+took an extra step to get there — that sentence about the isActive()/getActive()
+mismatch is the only part of the message that actually required a human.
 
-## Part D (continued) — AI-drafted PR summary
+## Part D, continued — PR description
 
-Repo: https://github.com/abdra04-gif/m3-hands-on — PR: https://github.com/abdra04-gif/m3-hands-on/pull/1
+Repo: https://github.com/abdra04-gif/m3-hands-on
+PR: https://github.com/abdra04-gif/m3-hands-on/pull/1
 
-**Original AI draft** (from the raw diff, generic):
+First draft, straight off the diff:
 ```
 ## Summary
 - Added fields and fromUser mapper to UserDTO record
@@ -155,7 +158,7 @@ Repo: https://github.com/abdra04-gif/m3-hands-on — PR: https://github.com/abdr
 - Ran make test
 ```
 
-**Edited (used in the actual PR) version:**
+What went into the actual PR:
 ```
 ## Summary
 - Complete UserDTO as a record (id, name, email, active) with a
@@ -173,40 +176,37 @@ Repo: https://github.com/abdra04-gif/m3-hands-on — PR: https://github.com/abdr
 - [x] Reviewed PROMPTS.md for the compile error caught during Part B
       and confirmed the fix matches User's actual isActive() accessor
 ```
-Same gap as the commit message: the raw AI draft correctly listed *what*
-changed (it can read the diff), but the checklist-style test plan and the
-explicit mention of the `getActive()`/`isActive()` catch only went in once I
-edited it — that's the part that tells a reviewer what to actually verify and
-why the change is trustworthy, not just what files moved.
+Same gap as the commit message, basically: the generic draft tells a reviewer
+what changed, the edited one tells them what to actually go check and why they
+should trust it.
 
-## Part E — branch-name suggestion
+## Part E — branch name for a hypothetical issue
 
-**Prompt:**
-> Suggest a branch name for this issue: "customer wants to be able to close
-> their account permanently". Format: prefix/short-kebab-slug. Prefix is one
-> of: feat, fix, chore, docs, refactor.
+Asked: "Suggest a branch name for this issue: customer wants to be able to
+close their account permanently."
 
-**Suggestion:** `feat/close-account-permanently`
+Got back: `feat/close-account-permanently`
 
-Would I have named it the same way? Mostly — `feat` is right (it's new
-user-facing capability, not a bug fix), and the slug is short and readable. The
-only thing I'd reconsider is whether "permanently" belongs in the slug at all
-versus in the PR description — it's the kind of detail that matters for review
-but doesn't change how the branch is found or filtered later. A slightly
-tighter alternative would be `feat/account-deletion`.
+Would I have picked the same thing? Pretty much, yeah — `feat` is the right
+prefix since this is new capability rather than a fix, and the slug is short
+enough to read at a glance. If I'm nitpicking, "permanently" is more of a PR-
+description detail than something that needs to live in the branch name — I'd
+probably have just gone with `feat/account-deletion` and let the description
+carry the nuance.
 
 ## Reflection
 
-Where the AI "understood" intent: field types and naming for `UserDTO` once
-`User.java` was in context (Part A), and the store-mutation idiom for
-`createOrder` — it correctly inferred `nextId++` allocation and `Map.put` from
-the constructor already used for the seed order, without being told the pattern
-explicitly.
+The model was genuinely good at picking up context it could see directly —
+grabbing the `active` field once `User.java` was open, matching types field for
+field, inferring the `nextId++` / `store.put` pattern for `createOrder` from the
+constructor that was already sitting right there in the same file. It didn't
+need those patterns spelled out.
 
-Where it didn't: the `isActive()`/`getActive()` mismatch in Part B is the
-textbook case — the model pattern-matched to the *conventional* JavaBean getter
-name for a boolean field instead of the *actual* method `User` defines, because
-generating plausible-looking code isn't the same as checking it against the real
-class. It only surfaces at compile time, which is exactly why the assignment's
-"compile before you trust it" step matters — a hallucinated member name reads as
-completely normal code until `javac` disagrees.
+Where it fell down was exactly the case the assignment is pointing at: it
+reached for `getActive()` because that's the *statistically normal* getter name
+for a boolean field, not because it checked what `User` actually exposes. That's
+the core difference between generating plausible code and generating correct
+code — the model doesn't run a compiler in its head, so a hallucinated member
+name looks completely fine right up until `javac` disagrees with it. Which is
+basically the whole lesson of this lab: read before you accept, and compile
+before you trust it.
